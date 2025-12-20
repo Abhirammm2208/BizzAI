@@ -40,13 +40,35 @@ const Dashboard = () => {
   return (
     <Layout>
         {/* Welcome Section */}
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-8 mb-8 text-white">
-          <h2 className="text-3xl font-bold mb-2">
-            Welcome back, {user.name}! 👋
-          </h2>
-          <p className="text-indigo-100">
-            Here's your account overview and business insights
-          </p>
+        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-8 mb-8 text-white flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold mb-2">
+              Welcome back, {user.name}! 👋
+            </h2>
+            <p className="text-indigo-100">
+              Here's your account overview and business insights
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/profile-settings')}
+            className="flex items-center space-x-2 px-4 py-2 bg-white hover:bg-gray-100 text-indigo-600 rounded-lg transition-colors duration-150 font-medium whitespace-nowrap"
+            title="Edit your Profile"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+              />
+            </svg>
+            <span>Edit your Profile</span>
+          </button>
         </div>
 
         {/* Profile Card */}
@@ -84,7 +106,7 @@ const Dashboard = () => {
               <div>
                 <p className="text-sm font-medium text-gray-500">Email</p>
                 <p className="text-gray-900 font-medium">
-                  {user.shopName || 'Not provided'}
+                    {user.email || 'Not provided'}
                 </p>
               </div>
             </div>
@@ -138,6 +160,31 @@ const Dashboard = () => {
                 </p>
               </div>
             </div>
+
+              {/* Shop Name */}
+              <div className="flex items-start space-x-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <svg
+                    className="w-6 h-6 text-green-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5.5m-9.5 0H3m2 0h5.5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Shop Name</p>
+                  <p className="text-gray-900 font-medium">
+                    {user.shopName || 'Not provided'}
+                  </p>
+                </div>
+              </div>
           </div>
         </div>
 
