@@ -1,8 +1,14 @@
-import { useState, useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate, useParams } from 'react-router-dom';
-import { getCustomerById, updateCustomer, reset } from '../redux/slices/customerSlice';
-import Layout from '../components/Layout';
+import { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { useNavigate, useParams } from "react-router-dom";
+import { toast } from "react-toastify";
+import {
+  getCustomerById,
+  updateCustomer,
+  reset,
+} from "../redux/slices/customerSlice";
+import Layout from "../components/Layout";
+import "react-toastify/dist/ReactToastify.css";
 
 const EditCustomer = () => {
   const { id } = useParams();
@@ -13,13 +19,14 @@ const EditCustomer = () => {
   );
 
   const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    address: '',
+    name: "",
+    phone: "",
+    email: "",
+    address: "",
   });
-  
+
   const [shouldNavigate, setShouldNavigate] = useState(false);
+  const [duplicateField, setDuplicateField] = useState(null);
 
   const { name, phone, email, address } = formData;
 
@@ -33,10 +40,10 @@ const EditCustomer = () => {
   useEffect(() => {
     if (customer) {
       setFormData({
-        name: customer.name || '',
-        phone: customer.phone || '',
-        email: customer.email || '',
-        address: customer.address || '',
+        name: customer.name || "",
+        phone: customer.phone || "",
+        email: customer.email || "",
+        address: customer.address || "",
       });
     }
   }, [customer]);
@@ -44,7 +51,7 @@ const EditCustomer = () => {
   useEffect(() => {
     // Only navigate if we explicitly set the flag from this component
     if (shouldNavigate && isSuccess && !isLoading) {
-      navigate('/customers');
+      navigate("/customers");
       dispatch(reset());
     }
   }, [shouldNavigate, isSuccess, isLoading, navigate, dispatch]);
@@ -58,8 +65,21 @@ const EditCustomer = () => {
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    setShouldNavigate(true);
-    await dispatch(updateCustomer({ id, customerData: formData }));
+    setDuplicateField(null);
+    const result = await dispatch(updateCustomer({ id, customerData: formData }));
+    if (result.type === 'customers/update/fulfilled') {
+      toast.success("Customer updated successfully!");
+      setShouldNavigate(true);
+    } else if (result.type === 'customers/update/rejected') {
+      const errorMsg = result.payload || "Failed to update customer";
+      toast.error(errorMsg);
+      
+      if (errorMsg.toLowerCase().includes('phone')) {
+        setDuplicateField('phone');
+      } else if (errorMsg.toLowerCase().includes('email')) {
+        setDuplicateField('email');
+      }
+    }
   };
 
   if (isLoading && !customer) {
@@ -78,8 +98,8 @@ const EditCustomer = () => {
         {/* Header */}
         <div className="mb-8">
           <button
-            onClick={() => navigate('/customers')}
-            className="flex items-center text-gray-600 hover:text-gray-900 mb-4"
+            onClick={() => navigate("/customers")}
+            className="flex items-center text-secondary hover:text-main mb-4"
           >
             <svg
               className="w-5 h-5 mr-2"
@@ -96,25 +116,18 @@ const EditCustomer = () => {
             </svg>
             Back to Customers
           </button>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Edit Customer</h1>
-          <p className="text-gray-600">Update customer information</p>
+          <h1 className="text-3xl font-bold text-main mb-2">Edit Customer</h1>
+          <p className="text-secondary">Update customer information</p>
         </div>
 
-        {/* Error Message */}
-        {isError && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-600 text-sm">{message}</p>
-          </div>
-        )}
-
         {/* Form Card */}
-        <div className="bg-white rounded-xl shadow-sm p-8">
+        <div className="bg-card rounded-xl shadow-sm p-8">
           <form onSubmit={onSubmit} className="space-y-6">
             {/* Name Input */}
             <div>
               <label
                 htmlFor="name"
-                className="block text-sm font-medium text-gray-700 mb-2"
+                className="block text-sm font-medium text-secondary mb-2"
               >
                 Customer Name <span className="text-red-500">*</span>
               </label>
@@ -125,7 +138,7 @@ const EditCustomer = () => {
                 value={name}
                 onChange={onChange}
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-default rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 placeholder="John Doe"
               />
             </div>
@@ -134,7 +147,7 @@ const EditCustomer = () => {
             <div>
               <label
                 htmlFor="phone"
-                className="block text-sm font-medium text-gray-700 mb-2"
+                className="block text-sm font-medium text-secondary mb-2"
               >
                 Phone Number <span className="text-red-500">*</span>
               </label>
@@ -142,19 +155,30 @@ const EditCustomer = () => {
                 type="tel"
                 id="phone"
                 name="phone"
+                pattern="[0-9]{10}"
+                minLength={10}
+                maxLength={10}
                 value={phone}
-                onChange={onChange}
+                onChange={(e) => {
+                  onChange(e);
+                  if (duplicateField === 'phone') setDuplicateField(null);
+                }}
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${
+                  duplicateField === 'phone' ? 'border-red-500 border-2' : 'border-default'
+                }`}
                 placeholder="+91 9876543210"
               />
+              {duplicateField === 'phone' && (
+                <p className="mt-1 text-sm text-red-600">This phone number already exists</p>
+              )}
             </div>
 
             {/* Email Input */}
             <div>
               <label
                 htmlFor="email"
-                className="block text-sm font-medium text-gray-700 mb-2"
+                className="block text-sm font-medium text-secondary mb-2"
               >
                 Email Address
               </label>
@@ -163,17 +187,25 @@ const EditCustomer = () => {
                 id="email"
                 name="email"
                 value={email}
-                onChange={onChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                onChange={(e) => {
+                  onChange(e);
+                  if (duplicateField === 'email') setDuplicateField(null);
+                }}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${
+                  duplicateField === 'email' ? 'border-red-500 border-2' : 'border-default'
+                }`}
                 placeholder="customer@example.com"
               />
+              {duplicateField === 'email' && (
+                <p className="mt-1 text-sm text-red-600">This email already exists</p>
+              )}
             </div>
 
             {/* Address Input */}
             <div>
               <label
                 htmlFor="address"
-                className="block text-sm font-medium text-gray-700 mb-2"
+                className="block text-sm font-medium text-secondary mb-2"
               >
                 Address
               </label>
@@ -183,7 +215,7 @@ const EditCustomer = () => {
                 value={address}
                 onChange={onChange}
                 rows={3}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-default rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 placeholder="Street address, City, State, PIN"
               />
             </div>
@@ -192,8 +224,8 @@ const EditCustomer = () => {
             <div className="flex space-x-4 pt-4">
               <button
                 type="button"
-                onClick={() => navigate('/customers')}
-                className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition"
+                onClick={() => navigate("/customers")}
+                className="flex-1 px-6 py-3 border border-default text-secondary rounded-lg hover:bg-surface font-medium transition"
               >
                 Cancel
               </button>
@@ -226,7 +258,7 @@ const EditCustomer = () => {
                     Updating Customer...
                   </span>
                 ) : (
-                  'Update Customer'
+                  "Update Customer"
                 )}
               </button>
             </div>

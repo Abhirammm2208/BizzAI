@@ -270,7 +270,7 @@ const Inventory = () => {
         <div className="bg-white dark:bg-[rgb(var(--color-card))] rounded-xl shadow-sm dark:shadow-lg border dark:border-[rgb(var(--color-border))] overflow-hidden">
           {isLoading ? (
             <div className="flex justify-center items-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 dark:border-[rgb(var(--color-primary))]"></div>
+              <div className="animate-spin rounded h-12 w-12 border-b-2 border-indigo-600 dark:border-[rgb(var(--color-primary))]"></div>
             </div>
           ) : filteredItems.length === 0 ? (
             <div className="text-center py-12">
@@ -299,72 +299,104 @@ const Inventory = () => {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-[rgb(var(--color-table-header))] border-b border-gray-200 dark:border-[rgb(var(--color-border))]">
+                <thead className="bg-gray-50 dark:bg-[rgb(var(--color-surface))] border-b border-gray-200 dark:border-[rgb(var(--color-border))]">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-[rgb(var(--color-text-secondary))] uppercase tracking-wider">
                       Item
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-[rgb(var(--color-text-secondary))] uppercase tracking-wider">
                       Category
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-[rgb(var(--color-text-secondary))] uppercase tracking-wider">
                       Stock
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-[rgb(var(--color-text-secondary))] uppercase tracking-wider">
+                      Reserved
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-[rgb(var(--color-text-secondary))] uppercase tracking-wider">
+                      Available
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-[rgb(var(--color-text-secondary))] uppercase tracking-wider">
                       Cost Price
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-[rgb(var(--color-text-secondary))] uppercase tracking-wider">
                       Selling Price
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-[rgb(var(--color-text-secondary))] uppercase tracking-wider">
                       Profit Margin
                     </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white dark:bg-[rgb(var(--color-table-row))] divide-y divide-gray-200 dark:divide-[rgb(var(--color-border))]">
+                <tbody className="bg-white dark:bg-[rgb(var(--color-card))] divide-y divide-gray-200 dark:divide-[rgb(var(--color-border))]">
                   {filteredItems.map((item) => {
                     const profitMargin = ((item.sellingPrice - item.costPrice) / item.costPrice * 100).toFixed(1);
-                    const isLowStock = item.stockQty <= item.lowStockLimit;
+                    const availableStock = item.stockQty - (item.reservedStock || 0);
+                    const isLowStock = availableStock <= item.lowStockLimit;
 
                     return (
-                      <tr key={item._id} className="hover:bg-gray-50 dark:hover:bg-[rgb(var(--color-input))]">
+                      <tr key={item._id} className="hover:bg-gray-50 dark:hover:bg-[rgb(var(--color-surface))] transition-colors">
                         <td className="px-6 py-4">
                           <div>
-                            <div className="text-sm font-medium text-gray-900">{item.name}</div>
+                            <div className="text-sm font-medium text-gray-900 dark:text-[rgb(var(--color-text))]">{item.name}</div>
                             {item.sku && (
-                              <div className="text-sm text-gray-500">SKU: {item.sku}</div>
+                              <div className="text-xs text-gray-500 dark:text-[rgb(var(--color-text-secondary))]">SKU: {item.sku}</div>
                             )}
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded">
+                          <span className="px-2 py-1 text-xs font-medium bg-gray-100 dark:bg-[rgb(var(--color-surface))] text-gray-800 dark:text-[rgb(var(--color-text))] rounded whitespace-nowrap">
                             {item.category || 'Uncategorized'}
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="flex items-center">
-                            {isLowStock ? (
-                              <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                                {item.stockQty} {item.unit}
-                              </span>
-                            ) : (
-                              <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                {item.stockQty} {item.unit}
-                              </span>
-                            )}
-                          </div>
+                          {isLowStock ? (
+                            <span className="text-sm font-bold text-red-700 dark:text-red-600 whitespace-nowrap">
+                              {item.stockQty} {item.unit}
+                            </span>
+                          ) : (
+                            <span className="text-sm font-bold text-green-700 dark:text-green-600 whitespace-nowrap">
+                              {item.stockQty} {item.unit}
+                            </span>
+                          )}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-900">
+                        <td className="px-6 py-4">
+                          {item.reservedStock > 0 ? (
+                            <span className="text-sm font-bold text-orange-700 dark:text-orange-500 whitespace-nowrap">
+                              {item.reservedStock} {item.unit}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400 dark:text-[rgb(var(--color-text-muted))]">-</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          {(() => {
+                            const available = item.stockQty - (item.reservedStock || 0);
+                            return (
+                              <span className={`text-sm font-bold whitespace-nowrap ${available <= 0
+                                ? 'text-red-700 dark:text-red-400'
+                                : available <= item.lowStockLimit
+                                  ? 'text-yellow-800 dark:text-yellow-400'
+                                  : 'text-blue-600 dark:text-blue-400'
+                                }`}>
+                                {available} {item.unit}
+                              </span>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-[rgb(var(--color-text))] whitespace-nowrap">
                           ₹{item.costPrice.toFixed(2)}
                         </td>
-                        <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-[rgb(var(--color-text))] whitespace-nowrap">
                           ₹{item.sellingPrice.toFixed(2)}
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`text-sm font-medium ${profitMargin > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          <span className={`text-sm font-bold whitespace-nowrap ${profitMargin > 0
+                            ? 'text-green-700 dark:text-green-600'
+                            : 'text-red-700 dark:text-red-600'
+                            }`}>
                             {profitMargin}%
                           </span>
                         </td>
@@ -376,7 +408,7 @@ const Inventory = () => {
                               e.stopPropagation();
                               navigate(`/inventory/edit/${item._id}`);
                             }}
-                            className="text-indigo-600 dark:text-[rgb(var(--color-primary))] hover:text-indigo-900 dark:hover:text-[rgb(var(--color-primary-hover))] mr-4"
+                            className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 mr-4 transition-colors"
                           >
                             Edit
                           </button>
@@ -387,7 +419,7 @@ const Inventory = () => {
                               e.stopPropagation();
                               setDeleteConfirm(item._id);
                             }}
-                            className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-500"
+                            className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 transition-colors"
                           >
                             Delete
                           </button>
@@ -434,3 +466,5 @@ const Inventory = () => {
 };
 
 export default Inventory;
+
+

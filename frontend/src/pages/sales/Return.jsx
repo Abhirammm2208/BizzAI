@@ -145,7 +145,7 @@ const Return = () => {
       alert("Failed to fetch invoice details");
     }
   };
-
+  console.log("formData", formData);
   const updateItem = (index, field, value) => {
     const newItems = [...formData.items];
     newItems[index][field] = value;
@@ -321,24 +321,22 @@ const Return = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           {/* Invoice Selection */}
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">
-              Select Invoice
-            </h2>
+          <div className="bg-card rounded-xl shadow-sm p-6">
+            <h2 className="text-lg font-bold text-main mb-4">Select Invoice</h2>
             {formData.selectedInvoice ? (
-              <div className="p-4 bg-indigo-50 rounded-lg">
+              <div className="p-4 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-gray-900">
+                    <p className="font-medium text-main">
                       Invoice: {formData.selectedInvoice.invoiceNo}
                     </p>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-secondary">
                       Date:{" "}
                       {new Date(
                         formData.selectedInvoice.createdAt
                       ).toLocaleDateString()}
                     </p>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-secondary">
                       Amount: ₹{formData.selectedInvoice.totalAmount.toFixed(2)}
                     </p>
                   </div>
@@ -361,7 +359,7 @@ const Return = () => {
             ) : (
               <button
                 onClick={() => setShowInvoiceModal(true)}
-                className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-indigo-500 hover:text-indigo-600"
+                className="w-full px-4 py-3 border-2 border-dashed border-default rounded-lg text-secondary hover:border-indigo-500 hover:text-indigo-600"
               >
                 Click to select invoice
               </button>
@@ -370,56 +368,95 @@ const Return = () => {
 
           {/* Customer Info */}
           {formData.customer && (
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">Customer</h2>
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <p className="font-medium text-gray-900">
+            <div className="bg-card rounded-xl shadow-sm p-6">
+              <h2 className="text-lg font-bold text-main mb-4">Customer</h2>
+              <div className="p-4 bg-surface rounded-lg">
+                <p className="font-medium text-main">
                   {formData.customer.name}
                 </p>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-secondary">
                   {formData.customer.phone}
                 </p>
                 {formData.customer.email && (
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-secondary">
                     {formData.customer.email}
                   </p>
                 )}
               </div>
+              {/* Credit Balance Display */}
+             {formData && formData.customer.dues < 0 && (
+  <div className="mt-3 p-3 bg-card border border-default rounded-lg">
+    <div className="flex items-center justify-between">
+      <div className="flex items-center space-x-2">
+        {/* Icon matches theme primary color (Indigo/Amber) */}
+        <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        
+        {/* Uses text-secondary to stand out but not distract */}
+        <span className="text-sm font-medium text-secondary">
+          Available Credit
+        </span>
+      </div>
+
+      {/* Uses text-main for maximum brightness in Dark Mode */}
+      <span className="text-lg font-bold text-main">
+        ₹{Math.abs(formData.customer.dues).toFixed(2)}
+      </span>
+    </div>
+  </div>
+)}
+              {/* Pending Dues Display */}
+              {formData.customer && formData.customer?.dues > 0 && (
+                <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-900/30">
+                  <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  <span className="text-sm font-medium text-red-800 dark:text-red-200">
+                     Pending Dues
+                  </span>
+                </div>
+                <span className="text-lg font-bold text-red-600 dark:text-red-400">
+                    ₹{formData.customer.dues.toFixed(2)}
+                </span>
+              </div>
+              </div>
+              )}
             </div>
           )}
 
           {/* Return Items */}
           {formData.items.length > 0 && (
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">
-                Return Items
-              </h2>
+            <div className="bg-card rounded-xl shadow-sm p-6">
+              <h2 className="text-lg font-bold text-main mb-4">Return Items</h2>
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50 border-b">
+                  <thead className="bg-surface border-b">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-muted uppercase">
                         Item
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-muted uppercase">
                         Original Qty
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-muted uppercase">
                         Already Returned
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-muted uppercase">
                         Remaining
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-muted uppercase">
                         Return Qty
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-muted uppercase">
                         Rate
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-muted uppercase">
                         Condition
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-muted uppercase">
                         Reason
                       </th>
                     </tr>
@@ -427,16 +464,16 @@ const Return = () => {
                   <tbody className="divide-y">
                     {formData.items.map((item, index) => (
                       <tr key={index}>
-                        <td className="px-4 py-3 text-gray-900">
+                        <td className="px-4 py-3 text-main">
                           {item.productName}
                         </td>
-                        <td className="px-4 py-3 text-gray-600">
+                        <td className="px-4 py-3 text-secondary">
                           {item.originalQty}
                         </td>
-                        <td className="px-4 py-3 text-orange-600 font-medium">
+                        <td className="px-4 py-3 text-orange-600 dark:text-orange-400 font-medium">
                           {item.alreadyReturned || 0}
                         </td>
-                        <td className="px-4 py-3 text-green-600 font-medium">
+                        <td className="px-4 py-3 text-green-600 dark:text-green-400 font-medium">
                           {item.remainingQty}
                         </td>
                         <td className="px-4 py-3">
@@ -453,12 +490,12 @@ const Return = () => {
                                 )
                               )
                             }
-                            className="w-20 px-2 py-1 border rounded"
+                            className="w-20 px-2 py-1 border border-default rounded bg-card text-main focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                             min="0"
                             max={item.remainingQty}
                           />
                         </td>
-                        <td className="px-4 py-3 text-gray-900">
+                        <td className="px-4 py-3 text-main">
                           ₹{item.rate.toFixed(2)}
                         </td>
                         <td className="px-4 py-3">
@@ -470,7 +507,7 @@ const Return = () => {
                               // Clear reason when condition changes to prevent invalid combinations
                               updateItem(index, "reason", "");
                             }}
-                            className="w-32 px-2 py-1 border rounded"
+                            className="w-32 px-2 py-1 border border-default rounded bg-card text-main focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                           >
                             <option value="not_damaged">Not Damaged</option>
                             <option value="damaged">Damaged</option>
@@ -482,7 +519,7 @@ const Return = () => {
                             onChange={(e) =>
                               updateItem(index, "reason", e.target.value)
                             }
-                            className="w-40 px-2 py-1 border rounded"
+                            className="w-40 px-2 py-1 border border-default rounded bg-card text-main focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                           >
                             <option value="">Select reason</option>
                             {getReasonsForCondition(item.condition).map(
@@ -504,13 +541,13 @@ const Return = () => {
 
           {/* Refund Details */}
           {formData.items.length > 0 && (
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">
+            <div className="bg-card rounded-xl shadow-sm p-6">
+              <h2 className="text-lg font-bold text-main mb-4">
                 Refund Details
               </h2>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-secondary mb-2">
                     Refund Method <span className="text-red-600">*</span>
                   </label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -523,11 +560,11 @@ const Return = () => {
                           }
                           className={`p-3 border-2 rounded-lg transition ${
                             formData.refundMethod === method
-                              ? "border-indigo-600 bg-indigo-50"
-                              : "border-gray-200 hover:border-indigo-300"
+                              ? "border-indigo-600 bg-indigo-50 dark:bg-indigo-900/40"
+                              : "border-default hover:border-indigo-300"
                           }`}
                         >
-                          <div className="text-sm font-medium text-gray-900 capitalize">
+                          <div className="text-sm font-medium text-main capitalize">
                             {method.replace("_", " ")}
                           </div>
                         </button>
@@ -536,7 +573,7 @@ const Return = () => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-secondary mb-2">
                     Notes
                   </label>
                   <textarea
@@ -545,7 +582,7 @@ const Return = () => {
                       setFormData({ ...formData, notes: e.target.value })
                     }
                     rows="3"
-                    className="w-full px-4 py-2 border rounded-lg"
+                    className="w-full px-4 py-2 border border-default rounded-lg bg-card text-main focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     placeholder="Add notes about the return..."
                   />
                 </div>
@@ -556,19 +593,17 @@ const Return = () => {
 
         {/* Summary Sidebar */}
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-xl shadow-sm p-6 sticky top-4">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">
-              Return Summary
-            </h2>
+          <div className="bg-card rounded-xl shadow-sm p-6 sticky top-4">
+            <h2 className="text-lg font-bold text-main mb-4">Return Summary</h2>
             <div className="space-y-3 mb-4">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Subtotal:</span>
+                <span className="text-secondary">Subtotal:</span>
                 <span className="font-medium">
                   ₹{calculateSubtotal().toFixed(2)}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Tax:</span>
+                <span className="text-secondary">Tax:</span>
                 <span className="font-medium">
                   ₹{calculateTax().toFixed(2)}
                 </span>
@@ -576,18 +611,20 @@ const Return = () => {
             </div>
             <div className="border-t pt-4 mb-6">
               <div className="flex justify-between items-center">
-                <span className="text-lg font-bold">Refund Amount:</span>
-                <span className="text-2xl font-bold text-red-600">
+                <span className="text-lg font-bold text-main">Refund Amount:</span>
+                <span className="text-2xl font-bold text-red-600 dark:text-red-400">
                   ₹{calculateTotal().toFixed(2)}
                 </span>
-              </div>
             </div>
-            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg mb-6">
-              <p className="text-xs text-yellow-800">
-                <strong>Note:</strong> This amount will be credited to the
-                customer's account or refunded via the selected method.
-              </p>
             </div>
+            <div className="p-4 bg-amber-100/50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-lg mb-6">
+  <p className="text-sm text-main"> 
+    <strong className="text-primary font-bold">Note:</strong> 
+    <span className="ml-1">
+      This amount will be credited to the customer's account or refunded via the selected method.
+    </span>
+  </p>
+</div>
             <div className="space-y-3">
               <button
                 onClick={handleSubmit}
@@ -598,7 +635,7 @@ const Return = () => {
               </button>
               <button
                 onClick={() => navigate("/sales/returned-items")}
-                className="w-full py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                className="w-full py-3 border border-default text-secondary rounded-lg hover:bg-surface"
               >
                 View Returned Items
               </button>
@@ -609,16 +646,14 @@ const Return = () => {
 
       {/* Invoice Selection Modal */}
       {showInvoiceModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[80vh] overflow-hidden">
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-card rounded-xl shadow-xl max-w-4xl w-full max-h-[80vh] overflow-hidden">
             <div className="p-6 border-b">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold text-gray-900">
-                  Select Invoice
-                </h3>
+                <h3 className="text-xl font-bold text-main">Select Invoice</h3>
                 <button
                   onClick={() => setShowInvoiceModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-muted hover:text-secondary"
                 >
                   <svg
                     className="w-6 h-6"
@@ -640,51 +675,49 @@ const Return = () => {
                 placeholder="Search by invoice number or customer name..."
                 value={searchInvoice}
                 onChange={(e) => setSearchInvoice(e.target.value)}
-                className="w-full px-4 py-2 border rounded-lg"
+                className="w-full px-4 py-2 border border-default rounded-lg bg-card text-main placeholder:text-muted focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               />
             </div>
             <div className="overflow-y-auto max-h-96 p-6">
               {filteredInvoices.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">
-                  No invoices found
-                </p>
+                <p className="text-center text-muted py-8">No invoices found</p>
               ) : (
                 <div className="space-y-3">
                   {filteredInvoices.map((invoice) => (
                     <div
                       key={invoice._id}
                       onClick={() => handleInvoiceSelect(invoice)}
-                      className="p-4 border rounded-lg hover:bg-indigo-50 hover:border-indigo-500 cursor-pointer transition"
+                      className="p-4 border border-default rounded-lg hover:bg-surface hover:border-indigo-500 cursor-pointer transition"
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-medium text-gray-900">
+                          <p className="font-medium text-main">
                             {invoice.invoiceNo}
                           </p>
-                          <p className="text-sm text-gray-600">
+                          <p className="text-sm text-secondary">
                             {invoice.customer?.name || "Walk-in Customer"}
                           </p>
-                          <p className="text-sm text-gray-500">
+                          <p className="text-sm text-muted">
                             {new Date(invoice.createdAt).toLocaleDateString(
                               "en-IN"
                             )}
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="font-bold text-gray-900">
+                          <p className="font-bold text-main">
                             ₹{invoice.totalAmount.toFixed(2)}
                           </p>
                           <span
                             className={`inline-block px-2 py-1 rounded text-xs font-medium ${
                               invoice.paymentStatus === "paid"
-                                ? "bg-green-100 text-green-800"
-                                : invoice.paymentStatus === "partial"
-                                ? "bg-yellow-100 text-yellow-800"
-                                : "bg-red-100 text-red-800"
-                            }`}
-                          >
-                            {invoice.paymentStatus}
-                          </span>
+                              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                              : invoice.paymentStatus === "partial"
+                              ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+                              : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                          }`}
+                        >
+                          {invoice.paymentStatus}
+                        </span>
                         </div>
                       </div>
                     </div>
