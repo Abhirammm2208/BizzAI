@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import axios from 'axios';
+import api from '../../services/api';
 
-const API_URL = import.meta.env.VITE_BACKEND_URL + "/api/auth";
+const API_URL = "/api/auth";
 
 // Get user from localStorage
 const user = JSON.parse(localStorage.getItem('user'));
@@ -12,6 +12,8 @@ const initialState = {
   isSuccess: false,
   isError: false,
   message: '',
+  deviceConflict: false,
+  conflictMessage: '',
 };
 
 // Register user
@@ -19,7 +21,7 @@ export const register = createAsyncThunk(
   'auth/register',
   async (userData, thunkAPI) => {
     try {
-      const response = await axios.post(`${API_URL}/register`, userData);
+      const response = await api.post(`${API_URL}/register`, userData);
       if (response.data) {
         localStorage.setItem('user', JSON.stringify(response.data));
       }
@@ -39,7 +41,7 @@ export const login = createAsyncThunk(
   'auth/login',
   async (userData, thunkAPI) => {
     try {
-      const response = await axios.post(`${API_URL}/login`, userData);
+      const response = await api.post(`${API_URL}/login`, userData);
       if (response.data) {
         localStorage.setItem('user', JSON.stringify(response.data));
       }
@@ -59,7 +61,7 @@ export const requestPasswordReset = createAsyncThunk(
   'auth/forgotPassword',
   async (email, thunkAPI) => {
     try {
-      const response = await axios.post(`${API_URL}/forgot-password`, { email });
+      const response = await api.post(`${API_URL}/forgot-password`, { email });
       return response.data;
     } catch (error) {
       const message =
@@ -76,7 +78,7 @@ export const performPasswordReset = createAsyncThunk(
   'auth/resetPassword',
   async (payload, thunkAPI) => {
     try {
-      const response = await axios.post(`${API_URL}/reset-password`, payload);
+      const response = await api.post(`${API_URL}/reset-password`, payload);
       return response.data;
     } catch (error) {
       const message =
@@ -95,13 +97,30 @@ export const logout = createAsyncThunk('auth/logout', async () => {
   localStorage.removeItem('returnDraft');
 });
 
+// Force logout from previous device
+export const forceLogout = createAsyncThunk(
+  'auth/forceLogout',
+  async (credentials, thunkAPI) => {
+    try {
+      const response = await api.post(`${API_URL}/force-logout`, credentials);
+      return response.data;
+    } catch (error) {
+      const message =
+        (error.response && error.response.data && error.response.data.message) ||
+        error.message ||
+        error.toString();
+      return thunkAPI.rejectWithValue(message);
+    }
+  }
+);
+
 // Get user profile
 export const getProfile = createAsyncThunk(
   'auth/profile',
   async (_, thunkAPI) => {
     try {
       const token = thunkAPI.getState().auth.user.token;
-      const response = await axios.get(`${API_URL}/profile`, {
+      const response = await api.get(`${API_URL}/profile`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -124,8 +143,8 @@ export const updateProfile = createAsyncThunk(
     try {
       const token = thunkAPI.getState().auth.user.token;
       const userId = thunkAPI.getState().auth.user._id;
-      const response = await axios.put(
-        `${import.meta.env.VITE_BACKEND_URL}/api/users/${userId}`,
+      const response = await api.put(
+        `/api/users/${userId}`,
         userData,
         {
           headers: {
@@ -159,6 +178,8 @@ export const authSlice = createSlice({
       state.isSuccess = false;
       state.isError = false;
       state.message = '';
+      state.deviceConflict = false;
+      state.conflictMessage = '';
     },
   },
   extraReducers: (builder) => {
@@ -189,8 +210,15 @@ export const authSlice = createSlice({
       })
       .addCase(login.rejected, (state, action) => {
         state.isLoading = false;
-        state.isError = true;
-        state.message = action.payload;
+        // Check if this is a device conflict (409 status) - axios stores status in error.response
+        const errorData = action.payload;
+        if (typeof errorData === 'string' && errorData.includes('currently active on another device')) {
+          state.deviceConflict = true;
+          state.conflictMessage = errorData;
+        } else {
+          state.isError = true;
+          state.message = action.payload;
+        }
         state.user = null;
       })
       // Forgot Password
@@ -230,6 +258,20 @@ export const authSlice = createSlice({
       // Logout
       .addCase(logout.fulfilled, (state) => {
         state.user = null;
+      })
+      // Force Logout
+      .addCase(forceLogout.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(forceLogout.fulfilled, (state) => {
+        state.isLoading = false;
+        state.deviceConflict = false;
+        state.conflictMessage = '';
+      })
+      .addCase(forceLogout.rejected, (state, action) => {
+        state.isLoading = false;
+        state.isError = true;
+        state.message = action.payload;
       })
       // Get Profile
       .addCase(getProfile.pending, (state) => {

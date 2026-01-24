@@ -7,7 +7,7 @@ A modern, full-stack Point of Sale (POS) and inventory management system designe
 ### 🔐 Authentication & Authorization
 
 - Secure user registration and login with JWT authentication
-- Role-based access control (Owner, Admin)
+- Role-based access control (Owner)
 - Protected routes and API endpoints
 - Password encryption with bcrypt
 
@@ -215,6 +215,22 @@ npm install
 # Create .env file
 cp .env.example .env
 ```
+
+#### 4. Database Seed (Optional)
+
+Populate the database with sample data for faster development and testing:
+
+```bash
+cd backend
+npm run seed
+```
+
+This creates a demo account with pre-populated data:
+- **Email**: `demo@bizzai.com`
+- **Password**: `Demo@123`
+- 5 sample customers, 20 inventory items, 3 suppliers, and sample invoices
+
+> ⚠️ **Note**: This is for development only. Do not run on production databases.
 
 ### 🐳 Running with Docker (Recommended)
 

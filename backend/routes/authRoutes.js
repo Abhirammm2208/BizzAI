@@ -1,20 +1,20 @@
 import express from "express";
-import { registerUser, loginUser, getProfile, forgotPassword, resetPassword } from "../controllers/authController.js";
+import { registerUser, loginUser, getProfile, forgotPassword, resetPassword, forceLogout } from "../controllers/authController.js";
 import { protect } from "../middlewares/authMiddleware.js";
+import { authLimiter, passwordResetLimiter, forceLogoutLimiter } from "../middlewares/rateLimiter.js";
+import { getCsrfToken } from "../middlewares/csrfMiddleware.js";
 
 const router = express.Router();
 
-// POST - Register a new user
-router.post("/register", registerUser);
+// Public routes with rate limiting
+router.post("/register", authLimiter, registerUser);
+router.post("/login", authLimiter, loginUser);
+router.post("/force-logout", forceLogoutLimiter, forceLogout);
+router.post("/forgot-password", passwordResetLimiter, forgotPassword);
+router.post("/reset-password", passwordResetLimiter, resetPassword);
 
-// POST - Login existing user
-router.post("/login", loginUser);
-
-// GET - Get current user profile (protected)
+// Protected routes
 router.get("/profile", protect, getProfile);
-
-// Password reset flow
-router.post("/forgot-password", forgotPassword);
-router.post("/reset-password", resetPassword);
+router.get("/csrf-token", protect, getCsrfToken); // CSRF token endpoint
 
 export default router;

@@ -1,7 +1,12 @@
 import User from "../models/User.js";
-import { generateToken } from "../config/jwt.js";
+import RefreshToken from "../models/RefreshToken.js";
+import { generateToken, generateRefreshToken, generateRandomToken } from "../config/jwt.js";
 import crypto from "crypto";
 import { sendHtmlEmail, generatePasswordResetEmail } from "../utils/emailService.js";
+import { generateDeviceId, setDeviceIdCookie, getDeviceIdFromCookie } from "../utils/deviceUtils.js";
+import { info } from "../utils/logger.js";
+import { getDeviceMetadata, getIpAddress } from "../utils/deviceParser.js";
+import { logUserActivity } from "../utils/activityLogger.js";
 
 // Simple password strength check for registration
 const isStrongPassword = (password) => {
@@ -55,13 +60,79 @@ export const registerUser = async (req, res) => {
     });
 
     if (user) {
+      // Generate cryptographically secure deviceId for initial session
+      const deviceId = generateDeviceId();
+
+      // Extract device metadata
+      const deviceMeta = getDeviceMetadata(req);
+      const ipAddress = getIpAddress(req);
+
+      // Set initial device session and activity tracking
+      user.activeDeviceId = deviceId;
+      user.activeSessionCreatedAt = new Date();
+      user.activeSessionCount = 1;
+      user.activeDeviceIds = [deviceId];
+
+      // Update activity tracking fields
+      user.lastLoginAt = new Date();
+      user.lastSeenAt = new Date();
+      user.lastActivityType = "login";
+
+      // Update device tracking
+      user.lastActiveDeviceId = deviceId;
+      user.lastActiveDeviceType = deviceMeta.deviceType;
+      user.lastActiveOS = deviceMeta.os;
+      user.lastActiveBrowser = deviceMeta.browser;
+
+      // Update network tracking
+      user.lastLoginIp = ipAddress;
+      user.lastLoginUserAgent = deviceMeta.userAgent;
+      user.lastKnownIp = ipAddress;
+
+      // Set account status
+      user.accountStatus = "active";
+      user.accountCreatedSource = "web";
+
+      await user.save();
+
+      // Issue deviceId as secure HttpOnly signed cookie
+      setDeviceIdCookie(res, deviceId);
+
+      // Generate tokens
+      const accessToken = generateToken(user._id);
+      const refreshToken = generateRandomToken();
+
+      // Store refresh token with device metadata
+      await RefreshToken.create({
+        token: refreshToken,
+        user: user._id,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        createdByIp: ipAddress,
+        userAgent: deviceMeta.userAgent,
+        deviceId: deviceId,
+        deviceType: deviceMeta.deviceType,
+        browser: deviceMeta.browser,
+        os: deviceMeta.os,
+      });
+
+      // Log registration activity
+      await logUserActivity(user._id, "REGISTRATION", {
+        ipAddress,
+        userAgent: deviceMeta.userAgent,
+        deviceId,
+        deviceType: deviceMeta.deviceType,
+        browser: deviceMeta.browser,
+        os: deviceMeta.os,
+      });
+
       res.status(201).json({
         _id: user._id,
         name: user.name,
         email: user.email,
         shopName: user.shopName,
         phone: user.phone,
-        token: generateToken(user._id),
+        token: accessToken,
+        refreshToken: refreshToken,
       });
     } else {
       res.status(400).json({ message: "Invalid user data" });
@@ -77,21 +148,188 @@ export const registerUser = async (req, res) => {
  * @route POST /api/auth/login
  */
 export const loginUser = async (req, res) => {
+  // Import rate limiter handler
+  const { handleLoginAttempt } = await import('../middlewares/rateLimiter.js');
+
   try {
     const { email, password } = req.body;
 
     // Validate input
     if (!email || !password) {
+      await handleLoginAttempt(req, false);
       return res.status(400).json({ message: "Please enter email and password" });
     }
 
     // Find user
     const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) {
+      await handleLoginAttempt(req, false);
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Check if account is locked
+    if (user.isLocked()) {
+      return res.status(423).json({
+        message: "Account locked due to too many failed attempts. Try again later.",
+        lockedUntil: user.accountLockedUntil,
+      });
+    }
+
+    // Check if account is suspended
+    if (user.status === "suspended") {
+      return res.status(403).json({
+        message: "Account suspended. Please contact support.",
+      });
+    }
 
     // Match password
     const isMatch = await user.matchPassword(password);
-    if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
+    if (!isMatch) {
+      // Extract device metadata for logging
+      const deviceMeta = getDeviceMetadata(req);
+      const ipAddress = getIpAddress(req);
+
+      // Record failed attempt
+      await user.incLoginAttempts();
+      await user.recordFailedLogin(ipAddress, deviceMeta.userAgent);
+      await handleLoginAttempt(req, false);
+
+      // Log failed login activity
+      await logUserActivity(user._id, "FAILED_LOGIN", {
+        ipAddress,
+        userAgent: deviceMeta.userAgent,
+        deviceId: null,
+        deviceType: deviceMeta.deviceType,
+        browser: deviceMeta.browser,
+        os: deviceMeta.os,
+        metadata: { reason: "invalid_password" },
+      });
+
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    // Get deviceId from signed cookie (if exists)
+    const existingDeviceId = getDeviceIdFromCookie(req);
+
+    // Extract device metadata
+    const deviceMeta = getDeviceMetadata(req);
+    const ipAddress = getIpAddress(req);
+
+    // Check for active session on different device
+    // Device conflict occurs when:
+    // 1. User has an active deviceId stored
+    // 2. AND the deviceId from cookie doesn't match (or doesn't exist)
+    if (user.activeDeviceId && user.activeDeviceId !== existingDeviceId) {
+      // Log failed login attempt due to device conflict
+      await logUserActivity(user._id, "FAILED_LOGIN", {
+        ipAddress,
+        userAgent: deviceMeta.userAgent,
+        deviceId: existingDeviceId,
+        deviceType: deviceMeta.deviceType,
+        browser: deviceMeta.browser,
+        os: deviceMeta.os,
+        metadata: { reason: "device_conflict" },
+      });
+
+      return res.status(409).json({
+        message: "This account is currently active on another device.",
+        deviceConflict: true,
+      });
+    }
+
+    // Determine deviceId to use:
+    // - If existingDeviceId matches user.activeDeviceId, reuse it (same device)
+    // - If no activeDeviceId (first login or after force logout), generate new one
+    // - If existingDeviceId exists and matches, reuse it
+    let deviceIdToUse;
+    const isNewDevice = !existingDeviceId || user.activeDeviceId !== existingDeviceId;
+
+    if (existingDeviceId && user.activeDeviceId === existingDeviceId) {
+      // Same device, same session - reuse existing deviceId
+      deviceIdToUse = existingDeviceId;
+    } else {
+      // New device or first login - generate new deviceId
+      deviceIdToUse = generateDeviceId();
+    }
+
+    // Reset failed login attempts on successful login
+    await user.resetLoginAttempts();
+
+    // Record successful login (legacy method)
+    await user.recordLogin(ipAddress, deviceMeta.userAgent);
+
+    // Update comprehensive activity tracking
+    user.activeDeviceId = deviceIdToUse;
+    user.activeSessionCreatedAt = new Date();
+    user.lastLoginAt = new Date();
+    user.lastSeenAt = new Date();
+    user.lastActivityType = "login";
+
+    // Update session count
+    if (isNewDevice) {
+      user.activeSessionCount = (user.activeSessionCount || 0) + 1;
+      if (!user.activeDeviceIds.includes(deviceIdToUse)) {
+        user.activeDeviceIds.push(deviceIdToUse);
+      }
+    }
+
+    // Update device tracking
+    user.lastActiveDeviceId = deviceIdToUse;
+    user.lastActiveDeviceType = deviceMeta.deviceType;
+    user.lastActiveOS = deviceMeta.os;
+    user.lastActiveBrowser = deviceMeta.browser;
+
+    // Update network tracking
+    user.lastLoginIp = ipAddress;
+    user.lastLoginUserAgent = deviceMeta.userAgent;
+    user.lastKnownIp = ipAddress;
+
+    await user.save();
+
+    // Issue deviceId as secure HttpOnly signed cookie
+    setDeviceIdCookie(res, deviceIdToUse);
+
+    // Generate tokens
+    const accessToken = generateToken(user._id);
+    const refreshToken = generateRandomToken();
+
+    // Store refresh token with device metadata
+    await RefreshToken.create({
+      token: refreshToken,
+      user: user._id,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      createdByIp: ipAddress,
+      userAgent: deviceMeta.userAgent,
+      deviceId: deviceIdToUse,
+      deviceType: deviceMeta.deviceType,
+      browser: deviceMeta.browser,
+      os: deviceMeta.os,
+    });
+
+    // Log successful login activity
+    await logUserActivity(user._id, "LOGIN", {
+      ipAddress,
+      userAgent: deviceMeta.userAgent,
+      deviceId: deviceIdToUse,
+      deviceType: deviceMeta.deviceType,
+      browser: deviceMeta.browser,
+      os: deviceMeta.os,
+      metadata: { isNewDevice },
+    });
+
+    // Reset rate limit counters on successful login
+    await handleLoginAttempt(req, true);
+
+    // Production logging for diagnostics
+    if (process.env.NODE_ENV === 'production') {
+      info('✅ [LOGIN] User logged in successfully', {
+        userId: user._id,
+        email: user.email,
+        deviceIdPrefix: deviceIdToUse.substring(0, 8) + '...',
+        isNewDevice: deviceIdToUse !== existingDeviceId,
+        ip: ipAddress
+      });
+    }
 
     // Send response
     res.status(200).json({
@@ -102,7 +340,8 @@ export const loginUser = async (req, res) => {
       gstNumber: user.gstNumber,
       shopAddress: user.shopAddress,
       phone: user.phone,
-      token: generateToken(user._id),
+      token: accessToken,
+      refreshToken: refreshToken,
     });
   } catch (error) {
     console.error("Login Error:", error);
@@ -164,15 +403,90 @@ export const forgotPassword = async (req, res) => {
     );
 
     if (!mailSent) {
-      return res.status(500).json({ message: "Failed to send reset email" });
+      // Log detailed error server-side only
+      console.error("Failed to send password reset email to:", email);
+      // CRITICAL: Always return success to prevent information leakage
+      // User enumeration protection + email configuration privacy
     }
 
-    res.status(200).json({ message: "Reset link sent if the email exists" });
+    // Always return generic success message (security best practice)
+    res.status(200).json({ message: "If this email exists, a reset link has been sent" });
   } catch (error) {
     console.error("Forgot Password Error:", error);
-    res.status(500).json({ message: "Server Error", error: error.message });
+    // CRITICAL: Never expose error details to client
+    res.status(500).json({ message: "Unable to process request. Please try again later." });
   }
 };
+
+/**
+ * @desc Force logout from previous device and allow new login
+ * @route POST /api/auth/force-logout
+ * @security HIGH RISK - Strict rate limiting and audit logging required
+ */
+export const forceLogout = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Generic error message to prevent information leakage
+    const genericError = "Invalid credentials";
+
+    if (!email || !password) {
+      return res.status(400).json({ message: genericError });
+    }
+
+    // Find and verify user
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ message: genericError });
+    }
+
+    // Verify password
+    const isMatch = await user.matchPassword(password);
+    if (!isMatch) {
+      return res.status(401).json({ message: genericError });
+    }
+
+    // Audit logging (CRITICAL for security monitoring)
+    const auditData = {
+      userId: user._id,
+      email: user.email,
+      action: "FORCE_LOGOUT",
+      ip: req.ip || req.connection.remoteAddress,
+      userAgent: req.headers["user-agent"],
+      timestamp: new Date(),
+    };
+    console.warn("SECURITY AUDIT - Force Logout:", JSON.stringify(auditData));
+
+    // Revoke all refresh tokens for this user
+    await RefreshToken.updateMany(
+      { user: user._id, isRevoked: false },
+      { isRevoked: true, revokedAt: new Date() }
+    );
+
+    // Clear device session fields
+    user.activeDeviceId = null;
+    user.activeSessionCreatedAt = null;
+    await user.save();
+
+    // Production logging for diagnostics
+    if (process.env.NODE_ENV === 'production') {
+      info('✅ [FORCE-LOGOUT] Device sessions cleared', {
+        userId: user._id,
+        email: user.email,
+        ip: req.ip || req.connection.remoteAddress
+      });
+    }
+
+    res.status(200).json({
+      message: "All sessions revoked successfully. You can now log in from this device."
+    });
+  } catch (error) {
+    console.error("Force Logout Error:", error);
+    // Generic error message to prevent information leakage
+    res.status(500).json({ message: "Unable to process request" });
+  }
+};
+
 
 /**
  * @desc Reset password using token

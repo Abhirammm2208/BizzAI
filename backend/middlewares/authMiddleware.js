@@ -1,8 +1,11 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import { getDeviceIdFromCookie } from "../utils/deviceUtils.js";
+import { warn } from "../utils/logger.js";
 
 /**
  * Middleware to protect routes
+ * Validates both JWT token AND deviceId cookie
  */
 export const protect = async (req, res, next) => {
   let token;
@@ -20,6 +23,65 @@ export const protect = async (req, res, next) => {
 
       // Attach user (without password)
       req.user = await User.findById(decoded.id).select("-password");
+
+      // CRITICAL: Validate deviceId from cookie matches user's active deviceId
+      const deviceIdFromCookie = getDeviceIdFromCookie(req);
+
+      // Enhanced logging for production diagnostics
+      if (process.env.NODE_ENV === 'production') {
+        if (!deviceIdFromCookie) {
+          warn('⚠️  [AUTH] Device validation failed - No cookie', {
+            userId: req.user._id,
+            hasActiveDevice: !!req.user.activeDeviceId,
+            activeDevicePrefix: req.user.activeDeviceId ? req.user.activeDeviceId.substring(0, 8) + '...' : 'none'
+          });
+        } else if (req.user.activeDeviceId !== deviceIdFromCookie) {
+          warn('⚠️  [AUTH] Device validation failed - Mismatch', {
+            userId: req.user._id,
+            cookieDevicePrefix: deviceIdFromCookie.substring(0, 8) + '...',
+            activeDevicePrefix: req.user.activeDeviceId ? req.user.activeDeviceId.substring(0, 8) + '...' : 'none'
+          });
+        }
+      }
+
+      if (!deviceIdFromCookie || req.user.activeDeviceId !== deviceIdFromCookie) {
+        // Device mismatch - this device was logged out from another location
+        // Provide more specific error message based on the scenario
+        const errorMessage = !deviceIdFromCookie
+          ? "Session expired. Please log in again."
+          : "This account is currently active on another device. Please log in again.";
+
+        return res.status(401).json({
+          message: errorMessage,
+          sessionExpired: true,
+          reason: !deviceIdFromCookie ? 'missing_cookie' : 'device_mismatch'
+        });
+      }
+
+      // Update lastSeenAt on every authenticated request (non-blocking)
+      // Determine activity type based on request path
+      let activityType = "api_call";
+      if (req.path.includes("/invoices") || req.path.includes("/sales")) {
+        activityType = "invoice_management";
+      } else if (req.path.includes("/customers")) {
+        activityType = "customer_management";
+      } else if (req.path.includes("/items") || req.path.includes("/inventory")) {
+        activityType = "inventory_management";
+      }
+
+      // Non-blocking update (don't await to avoid slowing down requests)
+      User.findByIdAndUpdate(
+        req.user._id,
+        {
+          lastSeenAt: new Date(),
+          lastActivityType: activityType,
+        },
+        { new: false }
+      ).catch(err => {
+        // Silent fail - don't block request if update fails
+        warn('Failed to update lastSeenAt', { userId: req.user._id, error: err.message });
+      });
+
       next();
     } else {
       return res.status(401).json({ message: "Not authorized, token missing" });
