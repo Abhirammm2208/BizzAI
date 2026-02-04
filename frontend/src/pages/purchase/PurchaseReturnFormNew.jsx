@@ -39,11 +39,11 @@ const PurchaseReturnFormNew = () => {
         items: [],
 
         // Financial
-        billDiscount: '',
-        tdsAmount: '',
-        transportCharges: '',
-        handlingCharges: '',
-        restockingFee: '',
+        billDiscount: 0,
+        tdsAmount: 0,
+        transportCharges: 0,
+        handlingCharges: 0,
+        restockingFee: 0,
 
         // Refund
         refundMode: 'adjust_payable',
